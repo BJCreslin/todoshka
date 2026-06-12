@@ -20,13 +20,23 @@ func defaultStr(s, d string) string { if s == "" { return d }; return s }
 func (d *DB) CreateTask(ownerID int64, t *models.Task) (int64, error) {
 	pos, err := d.nextTaskPosition(ownerID, defaultStr(t.Status, "todo"))
 	if err != nil { return 0, err }
-	res, err := d.Exec(`INSERT INTO tasks (owner_id, title, description, status, priority, due_date, position)
+	tx, err := d.Begin()
+	if err != nil { return 0, err }
+	defer tx.Rollback()
+	res, err := tx.Exec(`INSERT INTO tasks (owner_id, title, description, status, priority, due_date, position)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		ownerID, t.Title, t.Description, defaultStr(t.Status, "todo"),
 		defaultStr(t.Priority, "medium"), t.DueDate, pos)
 	if err != nil { return 0, err }
 	id, _ := res.LastInsertId()
-	if len(t.Tags) > 0 { if err := d.setTaskTags(id, t.Tags); err != nil { return 0, err } }
+	if len(t.Tags) > 0 {
+		if _, err := tx.Exec(`DELETE FROM task_tags WHERE task_id = ?`, id); err != nil { return 0, err }
+		for _, tag := range t.Tags {
+			if tag == "" { continue }
+			if _, err := tx.Exec(`INSERT OR IGNORE INTO task_tags (task_id, tag) VALUES (?, ?)`, id, tag); err != nil { return 0, err }
+		}
+	}
+	if err := tx.Commit(); err != nil { return 0, err }
 	return id, nil
 }
 
@@ -46,7 +56,9 @@ func (d *DB) GetTask(id, userID int64) (*models.Task, error) {
 		&t.ID, &t.OwnerID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.DueDate, &t.Position, &t.CreatedAt, &t.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) { return nil, ErrNotFound }
 	if err != nil { return nil, err }
-	_ = d.loadTaskRelations(&t)
+	if err := d.loadTaskRelations(&t); err != nil {
+		return nil, err
+	}
 	return &t, nil
 }
 
