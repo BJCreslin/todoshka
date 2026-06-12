@@ -58,7 +58,7 @@ func TestRegisterRejectsDuplicate(t *testing.T) {
 	Mount(mux, d, secret)
 	for i := 0; i < 2; i++ {
 		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, httptest.NewRequest("POST", "/api/register", strings.NewReader(`{"username":"a","password":"hunter2hunter2"}`)))
+		mux.ServeHTTP(rec, httptest.NewRequest("POST", "/api/register", strings.NewReader(`{"username":"abc","password":"hunter2hunter2"}`)))
 		if i == 0 && rec.Code != 201 { t.Fatalf("first: %d", rec.Code) }
 		if i == 1 && rec.Code != 409 { t.Fatalf("second: %d", rec.Code) }
 	}

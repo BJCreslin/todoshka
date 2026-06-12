@@ -45,8 +45,8 @@ func registerHandler(d *db.DB, secret string) http.HandlerFunc {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			BadRequest(w, "INVALID_JSON", "invalid json body"); return
 		}
-		if len(req.Username) < 1 || len(req.Username) > 32 {
-			BadRequest(w, "INVALID_USERNAME", "username must be 1-32 chars"); return
+		if len(req.Username) < 3 || len(req.Username) > 32 {
+			BadRequest(w, "INVALID_USERNAME", "username must be 3-32 chars"); return
 		}
 		if len(req.Password) < MinPasswordLen {
 			BadRequest(w, "WEAK_PASSWORD", "password must be at least 8 chars"); return
