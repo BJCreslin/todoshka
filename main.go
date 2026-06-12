@@ -32,6 +32,7 @@ func main() {
 	secret := os.Getenv("TODOSHKA_JWT_SECRET")
 	if secret == "" { secret = "dev-secret-change-me-please-32bytes" }
 	handlers.Mount(mux, d, secret)
+	mux.Handle("GET /", http.FileServer(http.Dir("web")))
 	addr := os.Getenv("TODOSHKA_PORT")
 	if addr == "" {
 		addr = ":8080"
