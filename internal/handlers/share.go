@@ -13,6 +13,8 @@ func mountShare(mux *http.ServeMux, d *db.DB, secret string) {
 	mux.Handle("POST /api/share", auth(http.HandlerFunc(shareCreate(d))))
 	mux.Handle("DELETE /api/share", auth(http.HandlerFunc(shareDelete(d))))
 	mux.Handle("GET /api/shared", auth(http.HandlerFunc(sharedList(d))))
+	mux.Handle("GET /api/tasks/{id}/shares", auth(http.HandlerFunc(taskShares(d))))
+	mux.Handle("GET /api/notes/{id}/shares", auth(http.HandlerFunc(noteShares(d))))
 }
 
 func shareCreate(d *db.DB) http.HandlerFunc {
@@ -31,11 +33,9 @@ func shareCreate(d *db.DB) http.HandlerFunc {
 			BadRequest(w, "INVALID_TYPE", "resource_type must be task or note")
 			return
 		}
-		owner, _ := d.IsOwner(body.ResourceType, body.ResourceID, u.ID)
-		if !owner {
-			Forbidden(w, "only the owner can share")
-			return
-		}
+		owner, err := d.IsOwner(body.ResourceType, body.ResourceID, u.ID)
+		if err != nil { Internal(w, "owner check"); return }
+		if !owner { Forbidden(w, "only the owner can share"); return }
 		target, err := d.GetUserByUsername(body.Username)
 		if err != nil {
 			NotFound(w, "user not found")
@@ -61,11 +61,13 @@ func shareDelete(d *db.DB) http.HandlerFunc {
 			BadRequest(w, "INVALID_JSON", "bad json")
 			return
 		}
-		owner, _ := d.IsOwner(body.ResourceType, body.ResourceID, u.ID)
-		if !owner {
-			Forbidden(w, "only the owner can unshare")
+		if body.ResourceType != "task" && body.ResourceType != "note" {
+			BadRequest(w, "INVALID_TYPE", "resource_type must be task or note")
 			return
 		}
+		owner, err := d.IsOwner(body.ResourceType, body.ResourceID, u.ID)
+		if err != nil { Internal(w, "owner check"); return }
+		if !owner { Forbidden(w, "only the owner can unshare"); return }
 		if err := d.Unshare(body.ResourceType, body.ResourceID, body.UserID); err != nil {
 			Internal(w, "unshare")
 			return
@@ -103,5 +105,33 @@ func sharedList(d *db.DB) http.HandlerFunc {
 			result = []out{}
 		}
 		writeJSON(w, http.StatusOK, result)
+	}
+}
+
+func taskShares(d *db.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := auth.UserFromContext(r.Context(), userCtxKey)
+		id, ok := parseID(w, r); if !ok { return }
+		owner, err := d.IsOwner("task", id, u.ID)
+		if err != nil { Internal(w, "owner check"); return }
+		if !owner { Forbidden(w, "only the owner can see shares"); return }
+		shares, err := d.ListSharesForResource("task", id)
+		if err != nil { Internal(w, "list shares"); return }
+		if shares == nil { shares = []db.ShareUser{} }
+		writeJSON(w, http.StatusOK, shares)
+	}
+}
+
+func noteShares(d *db.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u := auth.UserFromContext(r.Context(), userCtxKey)
+		id, ok := parseID(w, r); if !ok { return }
+		owner, err := d.IsOwner("note", id, u.ID)
+		if err != nil { Internal(w, "owner check"); return }
+		if !owner { Forbidden(w, "only the owner can see shares"); return }
+		shares, err := d.ListSharesForResource("note", id)
+		if err != nil { Internal(w, "list shares"); return }
+		if shares == nil { shares = []db.ShareUser{} }
+		writeJSON(w, http.StatusOK, shares)
 	}
 }

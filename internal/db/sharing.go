@@ -62,3 +62,21 @@ func (d *DB) ListSharedWithUser(userID int64) ([]SharedItem, error) {
 	}
 	return out, rows.Err()
 }
+
+type ShareUser struct {
+	UserID   int64  `json:"user_id"`
+	Username string `json:"username"`
+}
+
+func (d *DB) ListSharesForResource(resourceType string, resourceID int64) ([]ShareUser, error) {
+	rows, err := d.Query(`SELECT s.user_id, u.username FROM shares s JOIN users u ON u.id = s.user_id WHERE s.resource_type = ? AND s.resource_id = ? ORDER BY u.username`, resourceType, resourceID)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var out []ShareUser
+	for rows.Next() {
+		var su ShareUser
+		if err := rows.Scan(&su.UserID, &su.Username); err != nil { return nil, err }
+		out = append(out, su)
+	}
+	return out, rows.Err()
+}
