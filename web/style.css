@@ -32,3 +32,10 @@ a { color: #2563eb; }
 .prio-medium { background: #fff3cd; }
 .prio-high   { background: #f8d7da; }
 .empty { color: #999; font-style: italic; }
+
+.row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin: 8px 0 16px; }
+.subtasks, .tags, .links { list-style: none; padding: 0; margin: 8px 0; }
+.subtasks li, .tags li, .links li { padding: 4px 0; }
+button.danger { background: #f8d7da; border: 1px solid #f5c2c7; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
+input[type=text], input[type=date], select { padding: 4px 8px; }
+form.inline { display: inline-block; }
