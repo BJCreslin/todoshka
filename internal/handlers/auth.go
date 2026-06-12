@@ -82,4 +82,4 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, publicUser{ID: u.ID, Username: u.Username})
 }
 
-func mountShare(mux *http.ServeMux, d *db.DB, secret string)  {}
+

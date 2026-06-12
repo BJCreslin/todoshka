@@ -97,3 +97,37 @@ func TestSubtasksAndTags(t *testing.T) {
 		t.Fatalf("body: %s", rec.Body.String())
 	}
 }
+
+func TestShareFlow(t *testing.T) {
+	d, secret := setup(t)
+	mux := http.NewServeMux()
+	Mount(mux, d, secret)
+	tokA := registerAs(t, mux, "alice", "hunter2hunter2")
+	tokB := registerAs(t, mux, "bob", "bobpassbobpass")
+	tid := createTask(t, mux, tokA, `{"title":"A"}`)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/tasks/"+itoa(tid), nil)
+	req.Header.Set("Authorization", "Bearer "+tokB)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 404 {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/api/share", strings.NewReader(`{"resource_type":"task","resource_id":`+itoa(tid)+`,"username":"bob"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tokA)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 204 {
+		t.Fatalf("share: %d", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/api/tasks/"+itoa(tid), nil)
+	req.Header.Set("Authorization", "Bearer "+tokB)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
