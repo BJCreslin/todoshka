@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/vladimirkreslin/todoshka/internal/db"
+	"github.com/vladimirkreslin/todoshka/internal/handlers"
 	"github.com/vladimirkreslin/todoshka/internal/server"
 )
 
@@ -28,6 +29,9 @@ func main() {
 		}
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+	secret := os.Getenv("TODOSHKA_JWT_SECRET")
+	if secret == "" { secret = "dev-secret-change-me-please-32bytes" }
+	handlers.Mount(mux, d, secret)
 	addr := os.Getenv("TODOSHKA_PORT")
 	if addr == "" {
 		addr = ":8080"
