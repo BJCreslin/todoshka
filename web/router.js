@@ -4,10 +4,14 @@ export function route(pattern, handler) { routes.push({ pattern, handler }); }
 
 export function startRouter(rootEl) {
   async function run() {
-    const hash = location.hash.slice(1) || '/';
+    const raw = location.hash.slice(1) || '/';
+    const qIndex = raw.indexOf('?');
+    const path = qIndex === -1 ? raw : raw.slice(0, qIndex);
+    const query = qIndex === -1 ? '' : raw.slice(qIndex + 1);
     for (const r of routes) {
-      const m = match(r.pattern, hash);
+      const m = match(r.pattern, path);
       if (m) {
+        if (query) m.query = query;
         rootEl.innerHTML = '<div class="loading">Loading…</div>';
         try { await r.handler(m, rootEl); }
         catch (e) { rootEl.innerHTML = `<div class="error">${esc(e.message)}</div>`; }
