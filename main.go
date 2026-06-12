@@ -33,5 +33,7 @@ func main() {
 		addr = ":8080"
 	}
 	log.Printf("todoshka starting on %s (db=%s)", addr, dbPath)
-	log.Fatal(http.ListenAndServe(addr, server.Wrap(mux)))
+	if err := http.ListenAndServe(addr, server.Wrap(mux)); err != nil {
+		log.Fatalf("listen: %v", err)
+	}
 }

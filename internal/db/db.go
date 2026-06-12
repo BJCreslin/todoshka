@@ -17,9 +17,11 @@ func Open(path string) (*DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	if err := raw.Ping(); err != nil {
+		raw.Close()
 		return nil, fmt.Errorf("ping: %w", err)
 	}
 	if err := migrate(raw); err != nil {
+		raw.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return &DB{raw}, nil
@@ -59,7 +61,7 @@ CREATE TABLE IF NOT EXISTS note_versions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
   title TEXT NOT NULL, body_md TEXT NOT NULL,
-  editor_id INTEGER NOT NULL REFERENCES users(id),
+  editor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   saved_at DATETIME DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS note_task_links (
   note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
