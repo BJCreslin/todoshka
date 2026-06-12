@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+
+	"github.com/vladimirkreslin/todoshka/internal/db"
 )
 
 type APIError struct {
@@ -28,3 +31,15 @@ func NotFound(w http.ResponseWriter, msg string)     { writeError(w, http.Status
 func BadRequest(w http.ResponseWriter, code, msg string) { writeError(w, http.StatusBadRequest, code, msg) }
 func Conflict(w http.ResponseWriter, code, msg string)   { writeError(w, http.StatusConflict, code, msg) }
 func Internal(w http.ResponseWriter, msg string)         { writeError(w, http.StatusInternalServerError, "INTERNAL", msg) }
+
+func MapDBError(w http.ResponseWriter, err error, notFoundMsg, internalMsg string) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, db.ErrNotFound) {
+		NotFound(w, notFoundMsg)
+		return true
+	}
+	Internal(w, internalMsg)
+	return true
+}

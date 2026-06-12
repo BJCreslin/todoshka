@@ -60,7 +60,10 @@ func taskCreate(d *db.DB) http.HandlerFunc {
 			Internal(w, "create")
 			return
 		}
-		task, _ := d.GetTask(id, u.ID)
+		task, err := d.GetTask(id, u.ID)
+		if MapDBError(w, err, "task not found", "refetch") {
+			return
+		}
 		writeJSON(w, http.StatusCreated, task)
 	}
 }
@@ -73,8 +76,7 @@ func taskGet(d *db.DB) http.HandlerFunc {
 			return
 		}
 		task, err := d.GetTask(id, u.ID)
-		if err != nil {
-			NotFound(w, "task not found")
+		if MapDBError(w, err, "task not found", "refetch") {
 			return
 		}
 		writeJSON(w, http.StatusOK, task)
@@ -93,15 +95,13 @@ func taskUpdate(d *db.DB) http.HandlerFunc {
 			BadRequest(w, "INVALID_JSON", "bad json")
 			return
 		}
-		if err := d.UpdateTask(id, u.ID, body); err != nil {
-			if err == db.ErrNotFound {
-				NotFound(w, "task not found")
-				return
-			}
-			Internal(w, "update")
+		if MapDBError(w, d.UpdateTask(id, u.ID, body), "task not found", "update") {
 			return
 		}
-		task, _ := d.GetTask(id, u.ID)
+		task, err := d.GetTask(id, u.ID)
+		if MapDBError(w, err, "task not found", "refetch") {
+			return
+		}
 		writeJSON(w, http.StatusOK, task)
 	}
 }
@@ -113,8 +113,7 @@ func taskDelete(d *db.DB) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if err := d.DeleteTask(id, u.ID); err != nil {
-			NotFound(w, "task not found")
+		if MapDBError(w, d.DeleteTask(id, u.ID), "task not found", "delete task") {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -136,8 +135,7 @@ func subtaskAdd(d *db.DB) http.HandlerFunc {
 			return
 		}
 		sid, err := d.CreateSubtask(tid, u.ID, body.Title)
-		if err != nil {
-			NotFound(w, "task not found")
+		if MapDBError(w, err, "task not found", "create subtask") {
 			return
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{"id": sid, "task_id": tid, "title": body.Title, "done": false})
@@ -157,8 +155,7 @@ func subtaskUpdate(d *db.DB) http.HandlerFunc {
 			BadRequest(w, "INVALID_JSON", "bad json")
 			return
 		}
-		if err := d.UpdateSubtask(sid, u.ID, body); err != nil {
-			NotFound(w, "subtask not found")
+		if MapDBError(w, d.UpdateSubtask(sid, u.ID, body), "subtask not found", "update subtask") {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -168,9 +165,12 @@ func subtaskUpdate(d *db.DB) http.HandlerFunc {
 func subtaskDelete(d *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u := auth.UserFromContext(r.Context(), userCtxKey)
-		sid, _ := strconv.ParseInt(r.PathValue("sid"), 10, 64)
-		if err := d.DeleteSubtask(sid, u.ID); err != nil {
-			NotFound(w, "subtask not found")
+		sid, err := strconv.ParseInt(r.PathValue("sid"), 10, 64)
+		if err != nil {
+			BadRequest(w, "INVALID_ID", "bad id")
+			return
+		}
+		if MapDBError(w, d.DeleteSubtask(sid, u.ID), "subtask not found", "delete subtask") {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -191,8 +191,7 @@ func taskAddTag(d *db.DB) http.HandlerFunc {
 			BadRequest(w, "INVALID_BODY", "tag required")
 			return
 		}
-		if err := d.AddTaskTag(tid, u.ID, body.Tag); err != nil {
-			NotFound(w, "task not found")
+		if MapDBError(w, d.AddTaskTag(tid, u.ID, body.Tag), "task not found", "tag") {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -206,8 +205,7 @@ func taskRemoveTag(d *db.DB) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if err := d.RemoveTaskTag(tid, u.ID, r.PathValue("tag")); err != nil {
-			NotFound(w, "task not found")
+		if MapDBError(w, d.RemoveTaskTag(tid, u.ID, r.PathValue("tag")), "task not found", "tag") {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -226,8 +224,7 @@ func taskLinkNote(d *db.DB) http.HandlerFunc {
 			BadRequest(w, "INVALID_ID", "bad note id")
 			return
 		}
-		if err := d.LinkNoteToTask(nid, tid, u.ID); err != nil {
-			NotFound(w, "task or note not found")
+		if MapDBError(w, d.LinkNoteToTask(nid, tid, u.ID), "task or note not found", "link") {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -241,9 +238,12 @@ func taskUnlinkNote(d *db.DB) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		nid, _ := strconv.ParseInt(r.PathValue("nid"), 10, 64)
-		if err := d.UnlinkNoteFromTask(nid, tid, u.ID); err != nil {
-			NotFound(w, "task or note not found")
+		nid, err := strconv.ParseInt(r.PathValue("nid"), 10, 64)
+		if err != nil {
+			BadRequest(w, "INVALID_ID", "bad note id")
+			return
+		}
+		if MapDBError(w, d.UnlinkNoteFromTask(nid, tid, u.ID), "task or note not found", "unlink") {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
