@@ -90,14 +90,16 @@ async function initEditor(n) {
     go('/notes');
   };
 
-  // Render share list
-  fetch('/api/notes/' + editor.id + '/shares', {
-    headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') },
-  }).then((r) => r.ok ? r.json() : []).then((shares) => {
+  // Shares list — independent failure mode
+  try {
+    const shares = await fetch('/api/notes/' + editor.id + '/shares', {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') },
+    }).then((r) => r.ok ? r.json() : []);
     const list = document.getElementById('shareList');
     if (!list) return;
-    if (!shares.length) { list.innerHTML = '<li class="empty">никого</li>'; }
-    else {
+    if (!shares.length) {
+      list.innerHTML = '<li class="empty">никого</li>';
+    } else {
       list.innerHTML = shares.map((s) => `<li>${escapeHtml(s.username)} <button class="revoke-share" data-uid="${s.user_id}">×</button></li>`).join('');
       list.querySelectorAll('.revoke-share').forEach((btn) => {
         btn.onclick = async () => {
@@ -107,39 +109,42 @@ async function initEditor(n) {
         };
       });
     }
+  } catch (e) { /* ignore shares failure */ }
 
-    document.querySelectorAll('.unlink-task').forEach((btn) => {
-      btn.onclick = async () => {
-        const tid = btn.dataset.tid;
-        const token = localStorage.getItem('token') || '';
-        await fetch('/api/notes/' + editor.id + '/tasks/' + tid, {
-          method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token },
-        });
-        location.reload();
-      };
-    });
+  // Link picker for tasks — INDEPENDENT of shares fetch
+  try {
+    const allTasks = await api.listTasks();
+    const linkedIds = new Set((n.linked_tasks || []).map(Number));
+    const available = allTasks.filter((tk) => !linkedIds.has(tk.id));
+    const select = document.getElementById('taskSelect');
+    if (!available.length) {
+      select.innerHTML = '<option value="">— нет доступных —</option>';
+      select.disabled = true;
+    } else {
+      select.innerHTML = '<option value="">— выберите задачу —</option>' +
+        available.map((tk) => `<option value="${tk.id}">${escapeHtml(tk.title)} (#${tk.id})</option>`).join('');
+    }
+    document.getElementById('addTaskLink').onsubmit = async (e) => {
+      e.preventDefault();
+      const taskId = parseInt(select.value, 10);
+      if (!taskId) return;
+      try { await api.linkTaskToNote(editor.id, taskId); location.reload(); }
+      catch (e) { alert(e.message); }
+    };
+  } catch (e) { /* ignore link picker failure */ }
 
-    try {
-      const allTasks = await api.listTasks();
-      const linkedIds = new Set((n.linked_tasks || []).map(Number));
-      const available = allTasks.filter((tk) => !linkedIds.has(tk.id));
-      const select = document.getElementById('taskSelect');
-      if (!available.length) {
-        select.innerHTML = '<option value="">— нет доступных —</option>';
-        select.disabled = true;
-      } else {
-        select.innerHTML = '<option value="">— выберите задачу —</option>' +
-          available.map((tk) => `<option value="${tk.id}">${escapeHtml(tk.title)} (#${tk.id})</option>`).join('');
-      }
-      document.getElementById('addTaskLink').onsubmit = async (e) => {
-        e.preventDefault();
-        const taskId = parseInt(select.value, 10);
-        if (!taskId) return;
-        try { await api.linkTaskToNote(editor.id, taskId); location.reload(); }
-        catch (e) { alert(e.message); }
-      };
-    } catch (e) { /* ignore */ }
-  }).catch(() => {});
+  // Unlink buttons
+  document.querySelectorAll('.unlink-task').forEach((btn) => {
+    btn.onclick = async () => {
+      const tid = btn.dataset.tid;
+      const token = localStorage.getItem('token') || '';
+      const r = await fetch('/api/notes/' + editor.id + '/tasks/' + tid, {
+        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token },
+      });
+      if (!r.ok) { alert('Не удалось открепить'); return; }
+      location.reload();
+    };
+  });
 }
 
 async function save() {

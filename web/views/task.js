@@ -120,56 +120,60 @@ async function bindDetail(t) {
     go('/tasks');
   };
 
-  // Load and render the current share list
+  // Shares list — independent failure mode
   try {
     const shares = await fetch('/api/tasks/' + t.id + '/shares', {
       headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') },
     }).then((r) => r.ok ? r.json() : []);
     const list = document.getElementById('shareList');
-    if (!shares.length) { list.innerHTML = '<li class="empty">никого</li>'; }
-    else {
+    if (!shares.length) {
+      list.innerHTML = '<li class="empty">никого</li>';
+    } else {
       list.innerHTML = shares.map((s) => `<li>${escapeHtml(s.username)} <button class="revoke-share" data-uid="${s.user_id}">×</button></li>`).join('');
       list.querySelectorAll('.revoke-share').forEach((btn) => {
         btn.onclick = async () => {
-          if (!confirm('Отозвать доступ у ' + btn.parentElement.textContent.trim().replace('×','').trim() + '?')) return;
+          if (!confirm('Отозвать доступ?')) return;
           try { await api.unshare('task', t.id, parseInt(btn.dataset.uid, 10)); location.reload(); }
           catch (e) { alert(e.message); }
         };
       });
     }
+  } catch (e) { /* ignore shares failure */ }
 
-    document.querySelectorAll('.unlink-note').forEach((btn) => {
-      btn.onclick = async () => {
-        const nid = btn.dataset.nid;
-        const token = localStorage.getItem('token') || '';
-        await fetch('/api/tasks/' + t.id + '/notes/' + nid, {
-          method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token },
-        });
-        location.reload();
-      };
-    });
+  // Link picker for notes — INDEPENDENT of shares fetch
+  try {
+    const allNotes = await api.listNotes();
+    const linkedIds = new Set((t.linked_notes || []).map(Number));
+    const available = allNotes.filter((n) => !linkedIds.has(n.id));
+    const select = document.getElementById('noteSelect');
+    if (!available.length) {
+      select.innerHTML = '<option value="">— нет доступных —</option>';
+      select.disabled = true;
+    } else {
+      select.innerHTML = '<option value="">— выберите заметку —</option>' +
+        available.map((n) => `<option value="${n.id}">${escapeHtml(n.title)} (#${n.id})</option>`).join('');
+    }
+    document.getElementById('addNoteLink').onsubmit = async (e) => {
+      e.preventDefault();
+      const noteId = parseInt(select.value, 10);
+      if (!noteId) return;
+      try { await api.linkNoteToTask(t.id, noteId); location.reload(); }
+      catch (e) { alert(e.message); }
+    };
+  } catch (e) { /* ignore link picker failure */ }
 
-    try {
-      const allNotes = await api.listNotes();
-      const linkedIds = new Set((t.linked_notes || []).map(Number));
-      const available = allNotes.filter((n) => !linkedIds.has(n.id));
-      const select = document.getElementById('noteSelect');
-      if (!available.length) {
-        select.innerHTML = '<option value="">— нет доступных —</option>';
-        select.disabled = true;
-      } else {
-        select.innerHTML = '<option value="">— выберите заметку —</option>' +
-          available.map((n) => `<option value="${n.id}">${escapeHtml(n.title)} (#${n.id})</option>`).join('');
-      }
-      document.getElementById('addNoteLink').onsubmit = async (e) => {
-        e.preventDefault();
-        const noteId = parseInt(select.value, 10);
-        if (!noteId) return;
-        try { await api.linkNoteToTask(t.id, noteId); location.reload(); }
-        catch (e) { alert(e.message); }
-      };
-    } catch (e) { /* ignore */ }
-  } catch (e) { /* ignore */ }
+  // Unlink buttons
+  document.querySelectorAll('.unlink-note').forEach((btn) => {
+    btn.onclick = async () => {
+      const nid = btn.dataset.nid;
+      const token = localStorage.getItem('token') || '';
+      const r = await fetch('/api/tasks/' + t.id + '/notes/' + nid, {
+        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token },
+      });
+      if (!r.ok) { alert('Не удалось открепить'); return; }
+      location.reload();
+    };
+  });
 }
 
 function refresh() { location.reload(); }
