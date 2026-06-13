@@ -1,5 +1,6 @@
 # Build stage
 FROM golang:1.26-alpine AS build
+RUN apk add --no-cache gcc musl-dev
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -8,7 +9,7 @@ RUN CGO_ENABLED=1 go build -ldflags='-s -w' -o /out/todoshka .
 
 # Run stage
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates sqlite && \
+RUN apk add --no-cache ca-certificates sqlite wget && \
     addgroup -S todoshka && adduser -S todoshka -G todoshka
 WORKDIR /app
 COPY --from=build /out/todoshka /app/todoshka
