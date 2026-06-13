@@ -1,6 +1,8 @@
 package main
 
 import (
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -9,6 +11,9 @@ import (
 	"github.com/vladimirkreslin/todoshka/internal/handlers"
 	"github.com/vladimirkreslin/todoshka/internal/server"
 )
+
+//go:embed all:web
+var webFS embed.FS
 
 func main() {
 	dbPath := os.Getenv("TODOSHKA_DB")
@@ -32,7 +37,11 @@ func main() {
 	secret := os.Getenv("TODOSHKA_JWT_SECRET")
 	if secret == "" { secret = "dev-secret-change-me-please-32bytes" }
 	handlers.Mount(mux, d, secret)
-	mux.Handle("GET /", http.FileServer(http.Dir("web")))
+
+	sub, err := fs.Sub(webFS, "web")
+	if err != nil { log.Fatalf("embed web: %v", err) }
+	mux.Handle("GET /", http.FileServer(http.FS(sub)))
+
 	addr := os.Getenv("TODOSHKA_PORT")
 	if addr == "" {
 		addr = ":8080"

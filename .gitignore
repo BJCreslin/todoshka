@@ -1,7 +1,24 @@
-data/*
-!data/.gitkeep
+# Build artifacts
+todoshka
+todoshka-*
+*.exe
+
+# Local DB / data
+data/
 *.db
 *.db-shm
 *.db-wal
-.superpowers/
-.env
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Build cache
+build/
+*.test
+*.out
+coverage.*
+
+# Embedded assets source — included in the binary via //go:embed
+# (so the binary is self-contained, no separate web/ directory needed at runtime)
