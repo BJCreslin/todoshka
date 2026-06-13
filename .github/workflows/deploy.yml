@@ -1,0 +1,60 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Build (Linux amd64, static)
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags='-s -w' -o todoshka .
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Upload binary
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          scp todoshka "$DEPLOY_USER@$DEPLOY_HOST:/opt/todoshka/todoshka.new"
+
+      - name: Atomic swap and restart
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" '
+            set -e
+            systemctl stop todoshka 2>/dev/null || true
+            mv -f /opt/todoshka/todoshka /opt/todoshka/todoshka.prev 2>/dev/null || true
+            mv -f /opt/todoshka/todoshka.new /opt/todoshka/todoshka
+            chown todoshka:todoshka /opt/todoshka/todoshka
+            chmod +x /opt/todoshka/todoshka
+            systemctl start todoshka
+            sleep 2
+            systemctl is-active todoshka
+          '
+
+      - name: Health check
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          sleep 3
+          curl -fsS -m 5 "https://xn----7sbkgqu4addk9h.xn--p1ai/todoshka/api/health" \
+            | tee /tmp/health.json
+          grep -q '"status":"ok"' /tmp/health.json
