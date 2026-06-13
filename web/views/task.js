@@ -53,7 +53,11 @@ function detailHtml(t) {
     <form id="addTag"><input name="tag" placeholder="новый-тег"><button>+</button></form>
 
     <h3>Прикреплённые заметки</h3>
-    <ul class="links">${(t.linked_notes || []).map((nid) => `<li><a href="#/notes/${nid}">Заметка #${nid}</a></li>`).join('') || '<li class="empty">—</li>'}</ul>
+    <ul class="links" id="linkedNotes">${(t.linked_notes || []).map((nid) => `<li><a href="#/notes/${nid}">Заметка #${nid}</a> <button class="unlink-note" data-nid="${nid}">×</button></li>`).join('') || '<li class="empty">—</li>'}</ul>
+    <form id="addNoteLink" class="link-form">
+      <select name="note_id" id="noteSelect"><option value="">— загрузка… —</option></select>
+      <button type="submit">+</button>
+    </form>
 
     <h3>Доступ</h3>
     <ul id="shareList"><li class="empty">загрузка…</li></ul>
@@ -122,8 +126,49 @@ async function bindDetail(t) {
       headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') },
     }).then((r) => r.ok ? r.json() : []);
     const list = document.getElementById('shareList');
-    if (!shares.length) { list.innerHTML = '<li class="empty">никого</li>'; return; }
-    list.innerHTML = shares.map((s) => `<li>${escapeHtml(s.username)} (id=${s.user_id})</li>`).join('');
+    if (!shares.length) { list.innerHTML = '<li class="empty">никого</li>'; }
+    else {
+      list.innerHTML = shares.map((s) => `<li>${escapeHtml(s.username)} <button class="revoke-share" data-uid="${s.user_id}">×</button></li>`).join('');
+      list.querySelectorAll('.revoke-share').forEach((btn) => {
+        btn.onclick = async () => {
+          if (!confirm('Отозвать доступ у ' + btn.parentElement.textContent.trim().replace('×','').trim() + '?')) return;
+          try { await api.unshare('task', t.id, parseInt(btn.dataset.uid, 10)); location.reload(); }
+          catch (e) { alert(e.message); }
+        };
+      });
+    }
+
+    document.querySelectorAll('.unlink-note').forEach((btn) => {
+      btn.onclick = async () => {
+        const nid = btn.dataset.nid;
+        const token = localStorage.getItem('token') || '';
+        await fetch('/api/tasks/' + t.id + '/notes/' + nid, {
+          method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token },
+        });
+        location.reload();
+      };
+    });
+
+    try {
+      const allNotes = await api.listNotes();
+      const linkedIds = new Set((t.linked_notes || []).map(Number));
+      const available = allNotes.filter((n) => !linkedIds.has(n.id));
+      const select = document.getElementById('noteSelect');
+      if (!available.length) {
+        select.innerHTML = '<option value="">— нет доступных —</option>';
+        select.disabled = true;
+      } else {
+        select.innerHTML = '<option value="">— выберите заметку —</option>' +
+          available.map((n) => `<option value="${n.id}">${escapeHtml(n.title)} (#${n.id})</option>`).join('');
+      }
+      document.getElementById('addNoteLink').onsubmit = async (e) => {
+        e.preventDefault();
+        const noteId = parseInt(select.value, 10);
+        if (!noteId) return;
+        try { await api.linkNoteToTask(t.id, noteId); location.reload(); }
+        catch (e) { alert(e.message); }
+      };
+    } catch (e) { /* ignore */ }
   } catch (e) { /* ignore */ }
 }
 

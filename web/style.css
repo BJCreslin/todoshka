@@ -57,3 +57,13 @@ button.primary { background: #2563eb; color: white; border: none; padding: 6px 1
 .preview pre { background: #eee; padding: 8px; border-radius: 4px; overflow: auto; }
 .preview code { background: #eee; padding: 1px 4px; border-radius: 2px; }
 .preview blockquote { border-left: 3px solid #ccc; margin: 0; padding-left: 12px; color: #555; }
+
+.link-form { display: flex; gap: 6px; margin: 6px 0 16px; align-items: center; }
+.link-form select { flex: 1; padding: 4px 8px; }
+button.revoke-share, button.unlink-note, button.unlink-task {
+  background: none; border: none; cursor: pointer; color: #c00; font-size: 14px;
+  margin-left: 4px; padding: 0 4px;
+}
+button.revoke-share:hover, button.unlink-note:hover, button.unlink-task:hover {
+  background: #fee; border-radius: 3px;
+}
